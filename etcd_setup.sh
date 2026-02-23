@@ -4,13 +4,15 @@
 currentvm=etcd3
 ETCD_VER=v3.6.8
 
-etcd1_ip=<replace with IP1>
-etcd2_ip=<replace with IP2>
-etcd3_ip=<replace with IP3>
+# Update with real IPs, for example: 172.20.223.219
+etcd1_ip="CHANGE_ME"
+etcd2_ip="CHANGE_ME"
+etcd3_ip="CHANGE_ME"
 
-etcd1_name=<replace with Name1>
-etcd2_name=<replace with Name2>
-etcd3_name=<replace with Name3>
+# Update with real hostname. Multipass creates dns records <server name>.mshome.net, for example: etcd1.mshome.net
+etcd1_name="CHANGE_ME"
+etcd2_name="CHANGE_ME"
+etcd3_name="CHANGE_ME"
 
 # clenup any existing etcd setup
 sudo systemctl stop etcd || true
