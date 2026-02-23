@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 
-export etcd1_ip=172.20.223.219
-export etcd2_ip=172.20.212.174
-export etcd3_ip=172.20.219.32
+# Update before execution
+currentvm=etcd3
+ETCD_VER=v3.6.8
 
-export etcd1_name=etcd1.mshome.net
-export etcd2_name=etcd2.mshome.net
-export etcd3_name=etcd3.mshome.net
+etcd1_ip=<replace with IP1>
+etcd2_ip=<replace with IP2>
+etcd3_ip=<replace with IP3>
 
-export currentvm=etcd3
+etcd1_name=<replace with Name1>
+etcd2_name=<replace with Name2>
+etcd3_name=<replace with Name3>
 
 # clenup any existing etcd setup
 sudo systemctl stop etcd || true
@@ -17,12 +19,11 @@ sudo rm -f /etc/systemd/system/etcd.service || true
 sudo rm -rf /var/lib/etcd || true
 
 # export currentvm_ip and currentvm_name based on the currentvm variable
-eval export currentvm_ip=\${${currentvm}_ip}
-eval export currentvm_name=\${${currentvm}_name}
+eval currentvm_ip=\${${currentvm}_ip}
+eval currentvm_name=\${${currentvm}_name}
 
 ETCD_DIR="/var/lib/etcd"
 ETCD_SERVICE="/etc/systemd/system/etcd.service"
-ETCD_VER=v3.6.8
 
 # choose either URL
 GOOGLE_URL=https://storage.googleapis.com/etcd
