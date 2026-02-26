@@ -1,0 +1,96 @@
+#cloud-config
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - htop
+  - net-tools
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+
+timezone: America/New_York
+
+users:
+  - name: admin
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+      - ssh-rsa AAAA...
+
+write_files:
+  - path: /etc/modules-load.d/k8s.conf
+    content: |
+      overlay
+      br_netfilter
+
+  - path: /etc/sysctl.d/k8s.conf
+    content: |
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward                 = 1
+
+  - path: /usr/local/bin/setup-netplan.sh
+    permissions: '0755'
+    content: |
+      #!/bin/bash
+      # Wait for interface to appear if necessary
+      MAX_RETRIES=10
+      COUNT=0
+      while ! ip link show eth1 > /dev/null 2>&1 && [ $COUNT -lt $MAX_RETRIES ]; do
+          sleep 2
+          ((COUNT++))
+      done
+
+      mac_address=$(ip -o link show eth1 | awk '{print $17}')
+      output_file="/etc/netplan/99-multipass.yaml"
+
+      cat > "$output_file" <<EOF
+      network:
+          version: 2
+          ethernets:
+              eth1:
+                  dhcp4: false
+                  match:
+                      macaddress: ${mac_address}
+                  set-name: eth1
+                  addresses: [${NODE_IP}/24]
+      EOF
+      chmod 600 "$output_file"
+      netplan apply
+
+runcmd:
+  # 1. Network & Kernel Setup
+  - modprobe overlay
+  - modprobe br_netfilter
+  - sysctl --system
+
+  # 2. Docker/Containerd Repo Setup
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - |
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+    https://download.docker.com/linux/$(. /etc/os-release; echo "$ID") \
+    $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+
+  # 3. Install and Configure Containerd (Cgroup fix)
+  - apt-get update -y
+  - apt-get install -y containerd.io
+  - mkdir -p /etc/containerd
+  - containerd config default | sed 's/SystemdCgroup = false/SystemdCgroup = true/' > /etc/containerd/config.toml
+  - systemctl restart containerd
+
+  # 4. Kubernetes Repo & Install (v1.35)
+  - curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  - |
+    echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] \
+    https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+  - apt-get update -y
+  - apt-get install -y kubelet kubeadm kubectl
+  - apt-mark hold kubelet kubeadm kubectl
+
+  # 5. Finalize Network
+  # - [ bash, /usr/local/bin/setup-netplan.sh ]
